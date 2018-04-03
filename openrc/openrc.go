@@ -20,23 +20,32 @@ package openrc
 //		(str) != (NULL);			\
 //		(str) = ((str)->entries.tqe_next)) {
 //		stringarray[index] = (char*) calloc(sizeof(char), strlen(str->value) + 1);
-//		strcpy(stringarray[index], str->value);
+//		strncpy(stringarray[index], str->value, strlen(str->value));
 //		index++;
 //	}
+//	rc_stringlist_free(stringlist);
+//	stringarray[index] = NULL;
 //	return stringarray;
+//}
+//void free_array(char** array) {
+//	char **a;
+//	for (a = array;  *a;  a++) {
+//		if (*a == NULL) {
+//			free(*a);
+//			break;
+//		}
+//		free(*a);
+//	}
+//	free(array);
 //}
 //int rc_service_to_int (RC_SERVICE enu) {
 //	return (int) enu;
 //}
 //char** getRunlevels() {
-//		RC_STRINGLIST *levelsl;
-//		levelsl = rc_runlevel_list();
-//		return rc_stringlist_to_char_array(levelsl);
+//	return rc_stringlist_to_char_array(rc_runlevel_list());
 //}
 //char** getServicesInRunlevel(const char* runlevel) {
-//		RC_STRINGLIST *servicesl;
-//		servicesl = rc_services_in_runlevel(runlevel);
-//		return rc_stringlist_to_char_array(servicesl);
+//	return rc_stringlist_to_char_array(rc_services_in_runlevel(runlevel));
 //}
 //int getServiceState(const char* service) {
 //	return rc_service_to_int(rc_service_state(service));
@@ -62,19 +71,25 @@ func CStringArrayToGoStringArray(p **_Ctype_char) []string {
 }
 
 // Get all runlevels
-func getRunlevels() []string {
+func GetRunlevels() []string {
 	levels := C.getRunlevels()
-	return CStringArrayToGoStringArray(levels)
+	defer C.free_array(levels)
+	ret := CStringArrayToGoStringArray(levels)
+	return ret
 }
 
 // Get all services in specified runlevel
-func getServicesInRunlevel(runlevel string) []string {
-	services := C.getServicesInRunlevel(C.CString(runlevel))
-	return CStringArrayToGoStringArray(services)
+func GetServicesInRunlevel(runlevel string) []string {
+	crunlevel := C.CString(runlevel)
+	defer C.free(unsafe.Pointer(crunlevel))
+	services := C.getServicesInRunlevel(crunlevel)
+	defer C.free_array(services)
+	ret := CStringArrayToGoStringArray(C.getServicesInRunlevel(crunlevel))
+	return ret
 }
 
 // Get the encoded service state
-func getServiceState(service string) int {
+func GetServiceState(service string) int {
 	/*! @brief States a service can be in
 	typedef enum
 	{
@@ -95,5 +110,8 @@ func getServiceState(service string) int {
 		RC_SERVICE_WASINACTIVE = 0x0800
 	} RC_SERVICE;
 	*/
-	return int(C.getServiceState(C.CString(service)))
+	cservice := C.CString(service)
+	defer C.free(unsafe.Pointer(cservice))
+	state := int(C.getServiceState(cservice))
+	return state
 }
